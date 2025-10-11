@@ -1,19 +1,22 @@
 {
-  "name": "aaa",
-  "version": "0.0.0",
+  "name": "dome-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Dome.am website - contact form service",
   "private": true,
+  "author": "Dome.am",
+  "license": "ISC",
   "scripts": {
     "start": "node ./bin/www",
     "dev": "nodemon ./bin/www"
   },
   "dependencies": {
-    "cookie-parser": "~1.4.4",
+    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
-    "debug": "~2.6.9",
+    "debug": "^4.3.7",
     "dotenv": "^16.5.0",
-    "express": "~4.16.1",
-    "http-errors": "~1.6.3",
-    "morgan": "~1.9.1",
+    "express": "^4.21.1",
+    "http-errors": "^2.0.0",
+    "morgan": "^1.10.0",
     "nodemailer": "^7.0.3",
     "nodemon": "^3.1.10"
   }

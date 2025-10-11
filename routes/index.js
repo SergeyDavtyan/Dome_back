@@ -2,21 +2,68 @@ const express = require('express');
 const router = express.Router();
 const nodemailer = require("nodemailer");
 
-// Create a test account or replace with real credentials.
+// Rate limiting map
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_REQUESTS = 3; // 3 emails per minute per IP
+
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
   port: process.env.EMAIL_PORT,
-  secure: false, // true for port 465, false for others
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
 });
 
+// Validate email format
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
 
-router.post('/send-email', async (req, res, next) => {
+// Rate limiter middleware
+const rateLimiter = (req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  const userRequests = rateLimitMap.get(ip) || [];
 
-  const { from,  username, message, theme = "не задано" } = req.body;
+  // Remove old requests
+  const recentRequests = userRequests.filter(time => now - time < RATE_LIMIT_WINDOW);
+
+  if (recentRequests.length >= MAX_REQUESTS) {
+    return res.status(429).json({
+      error: "Too many requests. Please try again later."
+    });
+  }
+
+  recentRequests.push(now);
+  rateLimitMap.set(ip, recentRequests);
+  next();
+};
+
+router.post('/send-email', rateLimiter, async (req, res, _next) => {
+  const { from, username, message, theme = "не задано" } = req.body;
+
+  // Validation
+  if (!from || !username || !message) {
+    return res.status(400).json({
+      error: "Missing required fields: from, username, message"
+    });
+  }
+
+  if (!isValidEmail(from)) {
+    return res.status(400).json({
+      error: "Invalid email format"
+    });
+  }
+
+  if (message.length > 5000) {
+    return res.status(400).json({
+      error: "Message too long (max 5000 characters)"
+    });
+  }
 
   try {
     const info = await transporter.sendMail({
@@ -26,6 +73,7 @@ router.post('/send-email', async (req, res, next) => {
       html: `
        <h1><span style='color:#4834d4'>Тема: </span>${theme}</h1>
        <h1><span style='color:#4834d4'>Отправитель: </span>${username}</h1>
+       <h2><span style='color:#4834d4'>Email: </span>${from}</h2>
        <hr />
        <p>${message}</p>
        `,
@@ -33,14 +81,13 @@ router.post('/send-email', async (req, res, next) => {
 
     res.status(200).json({
       message: "Email sent successfully",
-      info: info,
+      messageId: info.messageId
     });
   } catch (error) {
-    console.log(error);
-    
+    console.error('Email error:', error);
+
     res.status(500).json({
-      message: "Error sending email",
-      error: error.message,
+      error: "Error sending email. Please try again later."
     });
   }
 })
